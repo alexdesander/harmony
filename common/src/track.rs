@@ -1,4 +1,4 @@
-use chrono::{NaiveDate, Utc};
+use chrono::NaiveDate;
 use derive_getters::Getters;
 use serde::{Deserialize, Serialize};
 
@@ -13,7 +13,13 @@ pub struct Track {
 }
 
 impl Track {
-    pub fn new(id: u32, url: String, title: String, artists: Vec<String>, date_archived: NaiveDate) -> Self {
+    pub fn new(
+        id: u32,
+        url: String,
+        title: String,
+        artists: Vec<String>,
+        date_archived: NaiveDate,
+    ) -> Self {
         let mut track = Self {
             id,
             url,
@@ -38,7 +44,7 @@ impl Track {
 
         // Add title
         result.push_str(&self.title);
-        
+
         // Add id
         result.push_str(format!(".{}", self.id()).as_str());
 

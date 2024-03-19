@@ -32,7 +32,7 @@ async fn main() {
 
     sender
         .send(Candidate {
-            url: "https://www.youtube.com/watch?v=zWrw0MRL_M0".to_string(),
+            url: "https://www.youtube.com/watch?v=dngleMsdEL0".to_string(),
             title: None,
             artists: vec![],
         })
