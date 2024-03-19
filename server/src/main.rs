@@ -1,26 +1,54 @@
-use std::{fs, path::PathBuf, str::FromStr};
+use std::{
+    env::set_var,
+    fs,
+    path::PathBuf,
+    str::FromStr,
+    sync::{Arc, Mutex},
+};
 
+use archiver::archiver_task;
+use common::candidate::Candidate;
 use database::Database;
-use tracing::{debug, level_filters::LevelFilter, warn};
+use once_cell::sync::Lazy;
+use tracing::{debug, warn, Level};
+use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
+pub mod archiver;
 pub mod database;
 
-fn main() {
-    setup_tracing();
-    let archive_dir = get_archive_dir();
+pub static ARCHIVE_DIR: Lazy<PathBuf> = Lazy::new(get_archive_dir);
+pub static DOWNLOAD_DIR: Lazy<PathBuf> = Lazy::new(get_download_dir);
+pub static TRACK_DIR: Lazy<PathBuf> = Lazy::new(get_track_dir);
 
-    let database = Database::new(archive_dir);
+#[tokio::main]
+async fn main() {
+    dotenv::dotenv().ok();
+    setup_tracing();
+
+    let database = Arc::new(Mutex::new(Database::new(ARCHIVE_DIR.clone())));
+    let (sender, receiver) = crossbeam::channel::unbounded();
+
+    tokio::task::spawn_blocking(move || archiver_task(receiver, database.clone()));
+
+    sender
+        .send(Candidate {
+            url: "https://www.youtube.com/watch?v=zWrw0MRL_M0".to_string(),
+            title: None,
+            artists: vec![],
+        })
+        .unwrap();
+
+    loop {}
 }
 
 fn setup_tracing() {
+    set_var("RUST_LOG", "none,server=trace,common=trace");
     let subscriber = tracing_subscriber::fmt()
-        .with_file(true)
+        .compact()
+        .with_max_level(Level::TRACE)
+        .with_span_events(FmtSpan::ACTIVE)
         .with_line_number(true)
-        .with_max_level(if cfg!(debug_assertions) {
-            LevelFilter::DEBUG
-        } else {
-            LevelFilter::INFO
-        })
+        .with_env_filter(EnvFilter::from_default_env())
         .finish();
     tracing::subscriber::set_global_default(subscriber).unwrap();
 }
@@ -31,7 +59,7 @@ fn get_archive_dir() -> PathBuf {
         Err(e) => {
             warn!("Unable to get HARMONY_ARCHIVE_DIR due to: '{e}'. Falling back to './harchive'");
             "./harchive".to_owned()
-        },
+        }
     };
     debug!("Creating/validating archive directory: {}", raw);
 
@@ -52,4 +80,18 @@ fn get_archive_dir() -> PathBuf {
     }
 
     path
+}
+
+fn get_download_dir() -> PathBuf {
+    let mut archive_dir = ARCHIVE_DIR.clone();
+    archive_dir.push("downloads");
+    fs::create_dir_all(&archive_dir).unwrap();
+    archive_dir
+}
+
+fn get_track_dir() -> PathBuf {
+    let mut archive_dir = ARCHIVE_DIR.clone();
+    archive_dir.push("tracks");
+    fs::create_dir_all(&archive_dir).unwrap();
+    archive_dir
 }

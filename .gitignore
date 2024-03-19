@@ -1,2 +1,3 @@
 target
 server/harchive
+server/.env
