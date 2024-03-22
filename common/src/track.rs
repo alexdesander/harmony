@@ -9,7 +9,6 @@ pub struct Track {
     pub title: String,
     pub artists: Vec<String>,
     pub date_archived: NaiveDate,
-    pub file_name: String,
 }
 
 impl Track {
@@ -20,19 +19,16 @@ impl Track {
         artists: Vec<String>,
         date_archived: NaiveDate,
     ) -> Self {
-        let mut track = Self {
+        Self {
             id,
             url,
             title,
             artists,
             date_archived,
-            file_name: "".to_string(),
-        };
-        track.file_name = track.calculate_file_name();
-        track
+        }
     }
 
-    fn calculate_file_name(&self) -> String {
+    pub fn file_name(&self) -> String {
         let mut result = String::new();
         // Add comma separated artists
         let artists = self.artists.iter().map(|a| a.as_str()).intersperse(&", ");
@@ -44,9 +40,6 @@ impl Track {
 
         // Add title
         result.push_str(&self.title);
-
-        // Add id
-        result.push_str(format!(".{}", self.id()).as_str());
 
         // Add file extension
         result.push_str(".m4a");

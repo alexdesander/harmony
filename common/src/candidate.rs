@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
+use anyhow::Context;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, bitcode::Encode, bitcode::Decode)]
 pub struct Candidate {
     pub url: String,
     pub title: Option<String>,
@@ -8,14 +8,10 @@ pub struct Candidate {
 }
 
 impl Candidate {
-    // Returns Err(()) if url is invalid
-    pub fn normalize_url(&mut self) -> Result<(), ()> {
-        self.url = match normalize_and_validate_url(&self.url) {
-            Some(url) => url,
-            None => return Err(()),
-        };
-
-        Ok(())
+    // Validates self if possible
+    pub fn validated(mut self) -> anyhow::Result<Self> {
+        self.url = normalize_and_validate_url(&self.url).context("Url is invalid")?;
+        Ok(self)
     }
 }
 

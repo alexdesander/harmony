@@ -4,11 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+anyhow = "1.0.81"
+bitcode.workspace = true
 chrono = { workspace = true, features = ["serde"] }
 derive = "1.0.0"
 derive-getters = "0.3.0"
 filenamify = "0.1.0"
 itertools.workspace = true
+random-string = "1.1.0"
 serde.workspace = true
 thiserror.workspace = true
-

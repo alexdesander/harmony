@@ -7,14 +7,23 @@ use std::{
 };
 
 use archiver::archiver_task;
-use common::candidate::Candidate;
+use auth::{auth_middleware, use_secret, TokenManager};
+use axum::{
+    middleware,
+    routing::{get, post},
+    Router,
+};
 use database::Database;
 use once_cell::sync::Lazy;
+use requests::get_all_tracks;
+use tower_http::cors::{Any, CorsLayer};
 use tracing::{debug, warn, Level};
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
 pub mod archiver;
+pub mod auth;
 pub mod database;
+pub mod requests;
 
 pub static ARCHIVE_DIR: Lazy<PathBuf> = Lazy::new(get_archive_dir);
 pub static DOWNLOAD_DIR: Lazy<PathBuf> = Lazy::new(get_download_dir);
@@ -26,19 +35,40 @@ async fn main() {
     setup_tracing();
 
     let database = Arc::new(Mutex::new(Database::new(ARCHIVE_DIR.clone())));
+    let token_manager = Arc::new(TokenManager::new(&std::env::var("SECRET").unwrap()));
     let (sender, receiver) = crossbeam::channel::unbounded();
 
-    tokio::task::spawn_blocking(move || archiver_task(receiver, database.clone()));
+    let _database = database.clone();
+    tokio::task::spawn_blocking(move || archiver_task(receiver, _database));
 
-    sender
-        .send(Candidate {
-            url: "https://www.youtube.com/watch?v=dngleMsdEL0".to_string(),
-            title: None,
-            artists: vec![],
-        })
-        .unwrap();
+    let cors = CorsLayer::new()
+        .allow_methods(Any)
+        .allow_origin(Any)
+        .allow_headers(Any);
 
-    loop {}
+    let _token_manager = token_manager.clone();
+    let app = Router::new()
+        .route(
+            "/get_all_tracks",
+            get({
+                let db = database.clone();
+                move || get_all_tracks(db)
+            }),
+        )
+        .layer(middleware::from_fn(move |request, next| {
+            auth_middleware(_token_manager.clone(), request, next)
+        }))
+        .route(
+            "/use_secret",
+            post({
+                let token_manager = token_manager.clone();
+                move |body| use_secret(token_manager, body)
+            }),
+        )
+        .layer(cors);
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:7000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
 }
 
 fn setup_tracing() {

@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use chrono::NaiveDate;
 use common::track::Track;
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
 
@@ -31,8 +32,7 @@ impl Database {
             id INTEGER NOT NULL PRIMARY KEY,
             url TEXT NOT NULL,
             title TEXT NOT NULL,
-            date_archived TEXT NOT NULL,
-            file_name TEXT NOT NULL);",
+            date_archived TEXT NOT NULL);",
             [],
         )
         .unwrap();
@@ -105,7 +105,7 @@ impl Database {
             let tracks = tracks.clone();
             let mut track_stmt = tx
                 .prepare(
-                    "REPLACE INTO tracks (id, url, title, date_archived, file_name) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    "REPLACE INTO tracks (id, url, title, date_archived) VALUES (?1, ?2, ?3, ?4)",
                 )
                 .unwrap();
             for track in tracks {
@@ -114,7 +114,6 @@ impl Database {
                     track.url(),
                     track.title(),
                     track.date_archived(),
-                    track.file_name(),
                 );
                 track_stmt.execute(values).unwrap();
             }
@@ -193,5 +192,61 @@ impl Database {
                 id
             }
         }
+    }
+
+    pub fn all_tracks(&mut self) -> Vec<Track> {
+        // Get tracks WITHOUT artists
+        let mut sql = self
+            .con
+            .prepare("SELECT id, url, title, date_archived FROM tracks")
+            .unwrap();
+
+        let mut tracks = sql
+            .query_map([], |row| {
+                let id: u32 = row.get(0).unwrap();
+                let url: String = row.get(1).unwrap();
+                let title: String = row.get(2).unwrap();
+                let date_archived: NaiveDate = row.get(3).unwrap();
+
+                Ok(Track {
+                    id,
+                    url,
+                    title,
+                    artists: vec![],
+                    date_archived,
+                })
+            })
+            .unwrap()
+            .map(|track| track.expect("Expected all tracks read from database to be valid."))
+            .collect::<Vec<_>>();
+
+        // Get artists
+        let mut sql = self
+            .con
+            .prepare(
+                "
+            SELECT
+                artists.name AS artist_name
+            FROM
+                artists
+            JOIN
+                track_artists ON artists.id = track_artists.artist_id
+            WHERE
+                track_artists.track_id = ?1;
+        ",
+            )
+            .unwrap();
+
+        for track in &mut tracks {
+            let artists = sql
+                .query_map([track.id], |row| {
+                    let name: String = row.get_unwrap(0);
+                    Ok(name)
+                })
+                .unwrap()
+                .map(|a| a.unwrap());
+            track.artists.extend(artists)
+        }
+        tracks
     }
 }

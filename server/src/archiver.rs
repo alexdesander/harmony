@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 use async_openai::{
     config::OpenAIConfig,
     types::{
@@ -32,14 +32,20 @@ pub fn archiver_task(receiver: Receiver<Candidate>, db: Arc<Mutex<Database>>) {
     };
 
     loop {
-        let mut candidate = receiver.recv().unwrap();
-        debug!("New candidate: {:?}", candidate);
+        let mut candidate = match receiver.recv().unwrap().validated() {
+            Ok(candidate) => candidate,
+            Err(e) => {
+                warn!("Received invalid candidate: {e}");
+                continue;
+            }
+        };
+
+        debug!(
+            "New archive candidate with url: {:?} received",
+            candidate.url
+        );
         if db.lock().unwrap().is_track_archived(&candidate.url) {
             debug!("Track is already archived, skipping it.");
-            continue;
-        }
-        if candidate.normalize_url().is_err() {
-            info!("Candidate with invalid url received, skipping it.");
             continue;
         }
 
@@ -50,7 +56,13 @@ pub fn archiver_task(receiver: Receiver<Candidate>, db: Arc<Mutex<Database>>) {
         let track_id = db.lock().unwrap().next_track_id();
 
         debug!("Filling metadata");
-        pollster::block_on(fill_metadata(&mut candidate, &mut gpt_client));
+        if let Err(e) = pollster::block_on(fill_metadata(&mut candidate, &mut gpt_client)) {
+            error!(
+                "Unable to fill metadata for candidate: {:?} because: {e}",
+                candidate
+            );
+            continue;
+        }
 
         debug!("Downloading track");
         if let Err(reason) = download_track(track_id, &candidate) {
@@ -62,7 +74,12 @@ pub fn archiver_task(receiver: Receiver<Candidate>, db: Arc<Mutex<Database>>) {
         }
 
         debug!("Setting audio tags");
-        set_audio_tags(&candidate, track_id);
+        if let Err(e) = set_audio_tags(&candidate, track_id) {
+            warn!(
+                "Unable to set audio tags for candidate: {:?} because: {e}",
+                candidate
+            );
+        }
 
         let track = Track::new(
             track_id,
@@ -71,25 +88,37 @@ pub fn archiver_task(receiver: Receiver<Candidate>, db: Arc<Mutex<Database>>) {
             candidate.artists,
             Utc::now().date_naive(),
         );
+        let file_name = track.file_name();
+        let mut down_dest = DOWNLOAD_DIR.clone();
+        down_dest.push(format!("{}.m4a", track_id));
+        let mut path_dest = TRACK_DIR.clone();
+        path_dest.push(&file_name);
+
         debug!("Moving track from download_dir to tracks");
         let mut old_path = DOWNLOAD_DIR.clone();
         old_path.push(format!("{}.m4a", track_id));
         let mut new_path = TRACK_DIR.clone();
         new_path.push(track.file_name());
+        if new_path.exists() {
+            error!("A track with this file name already exists, skipping archiving: {file_name}");
+            continue;
+        }
         std::fs::rename(old_path, new_path).unwrap();
 
         debug!("Inserting track into database");
-        {
-            let mut db = db.lock().unwrap();
-            db.insert_tracks(once(&track));
-        }
+        db.lock().unwrap().insert_tracks(once(&track));
+
+        debug!("Track archived.");
     }
 }
 
 // ./yt-dlp --print "%(track)s<<harmony>>%(artist)s<<harmony>>%(title)s<<harmony>>%(uploader)s"
-async fn fill_metadata(candidate: &mut Candidate, ai: &mut Option<Client<OpenAIConfig>>) {
+async fn fill_metadata(
+    candidate: &mut Candidate,
+    ai: &mut Option<Client<OpenAIConfig>>,
+) -> anyhow::Result<()> {
     // Get raw metadata from yt-dlp
-    let mut raw = get_raw_metadata(candidate).unwrap();
+    let mut raw = get_raw_metadata(candidate)?;
 
     // TODO: Add chatgpt processing
     if let RawMetadata::Video {
@@ -121,6 +150,7 @@ async fn fill_metadata(candidate: &mut Candidate, ai: &mut Option<Client<OpenAIC
     };
     candidate.title = Some(title);
     candidate.artists = artists;
+    Ok(())
 }
 
 enum RawMetadata {
@@ -128,7 +158,7 @@ enum RawMetadata {
     Video { title: String, uploader: String },
 }
 
-fn get_raw_metadata(candidate: &Candidate) -> Result<RawMetadata, ()> {
+fn get_raw_metadata(candidate: &Candidate) -> anyhow::Result<RawMetadata> {
     let mut cmd = Command::new("yt-dlp");
     cmd.args([
         "--print",
@@ -137,7 +167,7 @@ fn get_raw_metadata(candidate: &Candidate) -> Result<RawMetadata, ()> {
     cmd.arg(candidate.url.clone());
     cmd.stdin(Stdio::null());
     cmd.stderr(Stdio::null());
-    let output = cmd.output().unwrap();
+    let output = cmd.output()?;
     if output.status.success() {
         let data = String::from_utf8_lossy(&output.stdout).to_string();
         let mut splits = data.split("<<harmony>>");
@@ -182,7 +212,7 @@ fn get_raw_metadata(candidate: &Candidate) -> Result<RawMetadata, ()> {
         }
         return Ok(RawMetadata::Video { title, uploader });
     }
-    Err(())
+    bail!("yt-dlp returned EXIT_FAILURE");
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -205,11 +235,11 @@ async fn process_metadata_using_chatgpt(
                 {
                     "title": "TITLE",
                     "artists": ["ARTIST1", "ARTIST2"]
-                }"#).build().unwrap().into(),
+                }"#).build()?.into(),
             ChatCompletionRequestUserMessageArgs::default()
                 .content(video_title)
-                .build().unwrap().into()
-        ]).build().unwrap();
+                .build()?.into()
+        ]).build()?;
 
     let response = ai.chat().create(request).await?;
     let response = response
@@ -228,7 +258,7 @@ async fn process_metadata_using_chatgpt(
     Ok(response)
 }
 
-fn download_track(id: u32, candidate: &Candidate) -> Result<(), String> {
+fn download_track(id: u32, candidate: &Candidate) -> anyhow::Result<()> {
     let mut cmd = Command::new("yt-dlp");
     cmd.args(["-o", &format!("{}.m4a", id.to_string())]);
     cmd.args([
@@ -244,7 +274,7 @@ fn download_track(id: u32, candidate: &Candidate) -> Result<(), String> {
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::null());
     cmd.stderr(Stdio::null());
-    let output = cmd.output().unwrap();
+    let output = cmd.output()?;
     if output.status.success() {
         Ok(())
     } else {
@@ -253,16 +283,17 @@ fn download_track(id: u32, candidate: &Candidate) -> Result<(), String> {
             candidate.url,
             String::from_utf8_lossy(&output.stderr)
         );
-        Err(reason)
+        bail!(reason)
     }
 }
 
-fn set_audio_tags(candidate: &Candidate, id: u32) {
+fn set_audio_tags(candidate: &Candidate, id: u32) -> anyhow::Result<()> {
     let mut path = DOWNLOAD_DIR.clone();
     path.push(format!("{}.m4a", id));
 
-    let mut tag = Tag::new().read_from_path(&path).unwrap();
+    let mut tag = Tag::new().read_from_path(&path)?;
     tag.set_title(&candidate.title.as_ref().unwrap());
     tag.set_artist(&candidate.artists.join(", "));
-    tag.write_to_path(path.to_str().unwrap()).unwrap();
+    tag.write_to_path(path.to_str().unwrap())?;
+    Ok(())
 }
