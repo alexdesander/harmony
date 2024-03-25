@@ -156,6 +156,63 @@ impl Database {
         tx.commit().unwrap();
     }
 
+    pub fn get_tracks<'a>(
+        &mut self,
+        ids: impl Iterator<Item = u32> + Clone,
+    ) -> anyhow::Result<Vec<Track>> {
+        let mut tracks = Vec::new();
+
+        // Get tracks
+        for id in ids.clone() {
+            let track = self.con.query_row(
+                "SELECT id, url, title, date_archived FROM tracks WHERE id = ?1",
+                [id],
+                |row| {
+                    let id = row.get(0).unwrap();
+                    let url = row.get(1).unwrap();
+                    let title = row.get(2).unwrap();
+                    let date_archived = row.get(3).unwrap();
+                    Ok(Track {
+                        id,
+                        url,
+                        title,
+                        artists: vec![],
+                        date_archived,
+                    })
+                },
+            )?;
+            tracks.push(track);
+        }
+
+        // Get artists
+        let mut sql = self
+            .con
+            .prepare(
+                "
+            SELECT
+                artists.name AS artist_name
+            FROM
+                artists
+            JOIN
+                track_artists ON artists.id = track_artists.artist_id
+            WHERE
+                track_artists.track_id = ?1;
+        ",
+            )
+            .unwrap();
+
+        for track in &mut tracks {
+            let artists = sql
+                .query_map([track.id], |row| {
+                    let name: String = row.get_unwrap(0);
+                    Ok(name)
+                })?
+                .map(|a| a.unwrap());
+            track.artists.extend(artists)
+        }
+        Ok(tracks)
+    }
+
     pub fn is_track_archived(&self, url: &str) -> bool {
         self.con
             .query_row(

@@ -4,7 +4,7 @@ use leptos::DynAttrs;
 use leptos::{component, mount_to_body, view, IntoView};
 use leptos_meta::{provide_meta_context, Html, Meta, Title};
 use leptos_router::{Outlet, Route, Router, Routes, A};
-use leptos_use::storage::use_session_storage;
+use leptos_use::use_cookie;
 use leptos_use::utils::FromToStringCodec;
 use once_cell::sync::Lazy;
 use phosphor_leptos::{ArchiveBox, Database, IconWeight, Playlist};
@@ -35,7 +35,7 @@ fn main() {
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
-    let (api_token, _, _) = use_session_storage::<String, FromToStringCodec>("api_token");
+    let (api_token, _) = use_cookie::<String, FromToStringCodec>("api_token");
 
     view! {
         <Html lang="en" dir="ltr" attr:data-theme="light"/>
@@ -50,7 +50,7 @@ pub fn App() -> impl IntoView {
                         view=move || {
                             view! {
                                 {move || {
-                                    if !api_token().is_empty() {
+                                    if !api_token().is_none() {
                                         view! {
                                             <NavBar/>
                                             <Outlet/>

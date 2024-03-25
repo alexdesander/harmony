@@ -5,12 +5,14 @@ use std::{
 };
 
 use axum::{
-    extract::Request,
+    extract::{Query, Request},
     http::{header, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
 };
+use axum_extra::extract::CookieJar;
 use common::token::ApiToken;
+use serde::{Deserialize, Serialize};
 use tracing::debug;
 
 pub struct TokenManager {
@@ -57,27 +59,54 @@ pub async fn use_secret(token_manager: Arc<TokenManager>, body: String) -> Respo
     let token = token_manager.new_token();
     debug!("Created token: {:?}", token);
     (
-        [(header::CONTENT_TYPE, "application/octet-stream")],
+        [
+            (header::CONTENT_TYPE, "application/octet-stream"),
+            (
+                header::SET_COOKIE,
+                &format!("api_token={}; SameSite=None; Secure", token.as_str()),
+            ),
+        ],
         bitcode::encode(&token),
     )
         .into_response()
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenQuery {
+    api_token: Option<String>,
+}
+
 pub async fn auth_middleware(
+    jar: CookieJar,
+    Query(token_query): Query<TokenQuery>,
     token_manager: Arc<TokenManager>,
     request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    match request.headers().get("API_TOKEN") {
-        Some(api_token) => {
-            if let Ok(api_token) = api_token.to_str() {
-                if !token_manager.token_valid(&ApiToken::from_string(api_token)) {
-                    return Err(StatusCode::UNAUTHORIZED);
+    // Check if api_token cookie is set
+    let api_token = match jar.get("api_token") {
+        Some(token) => token.value().to_string(),
+        None => {
+            // Check if api_token is in headers
+            match request.headers().get("api_token") {
+                Some(token) => match token.to_str() {
+                    Ok(api_token) => api_token.to_string(),
+                    Err(_) => return Err(StatusCode::UNAUTHORIZED),
+                },
+                None => {
+                    // Check if the api_token is in the Query
+                    match token_query.api_token {
+                        Some(token) => token,
+                        None => return Err(StatusCode::UNAUTHORIZED),
+                    }
                 }
             }
         }
-        None => return Err(StatusCode::UNAUTHORIZED),
     };
+
+    if !token_manager.token_valid(&ApiToken::from_string(&api_token)) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
 
     let response = next.run(request).await;
     Ok(response)

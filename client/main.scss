@@ -387,6 +387,111 @@ nav {
         }
     }
 
+    .track_card_wrapper {
+        position: fixed;
+        top: 100px;
+        bottom: 100px;
+        max-width: 500px;
+        left: 0;
+        right: 0;
+        background-color: $primary-bg-color;
+
+        .track_card {
+            position: fixed;
+            top: 107px;
+            bottom: 107px;
+            left: 50%;
+            width: 97%;
+            max-width: 486px;
+            transform: translate(-50%, 0);
+            background-color: #353535;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+
+            .track_card_top {
+                width: 100%;
+                display: flex;
+                flex-direction: row;
+                justify-content: center;
+                align-items: center;
+            }
+
+            .track_card_top_stamp {
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: stretch;
+                flex-grow: 1;
+            }
+
+            .track_card_id {
+                margin-top: 5px;
+                width: 97.5%;
+                display: inline-block;
+                display: flex;
+                justify-content: flex-end;
+                align-items: center;
+                color: $primary-bg-color;
+            }
+
+            .track_card_date {
+                width: 97.5%;
+                display: inline-block;
+                display: flex;
+                justify-content: flex-end;
+                align-items: center;
+                color: $primary-bg-color;
+            }
+
+            .track_card_play_actions {
+                width: 95%;
+                height: 25%;
+                margin-top: 5%;
+                display: flex;
+                flex-direction: row;
+                justify-content: space-evenly;
+                align-items: center;
+                user-select: none;
+            }
+
+            .track_card_title {
+                font-size: x-large;
+                width: 85%;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                text-align: center;
+                margin-top: 2%;
+            }
+
+            .track_card_artists {
+                font-size: medium;
+                width: 76%;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                text-align: center;
+                margin-top: 6px;
+            }
+
+            .track_card_url {
+                font-size: small;
+                font-style: italic;
+                color: #747474;
+                width: 76%;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                text-align: center;
+                margin-top: 3px;
+            }
+        }
+    }
+
     .track_list_filter {
         width: 100%;
         min-height: 100px;
@@ -466,4 +571,72 @@ nav {
 
 .hoverable:hover {
     transform: scale(1.1);
+}
+
+.archive_card {
+    height: 400px;
+    width: 90%;
+    border-radius: 10px;
+    background-color: $secondary-bg-color;
+    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+
+    form {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        margin-top: 50px;
+    }
+
+    label {
+        font-size: 20px;
+    }
+
+    input {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        width: 75%;
+        height: 30px;
+        border-radius: 10px;
+        margin-bottom: 12px;
+        margin-top: 5px;
+    }
+
+    .title {
+        position: absolute;
+        top: 20px;
+        font-size: 22px;
+    }
+
+    .archive_card_hint {
+        position: absolute;
+        top: 48px;
+        width: 70%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        text-align: center;
+        font-style: italic;
+        font-size: small;
+        color: #a0a0a0;
+    }
+
+    button {
+        margin-top: 20px;
+    }
+}
+
+.invisible_form {
+    display: none;
 }

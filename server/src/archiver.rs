@@ -228,7 +228,7 @@ async fn process_metadata_using_chatgpt(
     debug!("Asking ChatGPT to extract info from video title");
     let request = CreateChatCompletionRequestArgs::default()
         .max_tokens(256u16)
-        .model("gpt-3.5-turbo-0125")
+        .model("gpt-4-0125-preview")
         .messages([
             ChatCompletionRequestSystemMessageArgs::default()
                 .content(r#"Given is the titel of a music video. The video title contains the song title and may contain song artists. Extract the song title and artists and present them like this:

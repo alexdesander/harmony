@@ -7,15 +7,16 @@ use std::{
 };
 
 use archiver::archiver_task;
-use auth::{auth_middleware, use_secret, TokenManager};
+use auth::{auth_middleware, use_secret, TokenManager, TokenQuery};
 use axum::{
+    extract::Query,
     middleware,
     routing::{get, post},
     Router,
 };
 use database::Database;
 use once_cell::sync::Lazy;
-use requests::get_all_tracks;
+use requests::{archive_track, download_tracks, get_all_tracks};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{debug, warn, Level};
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
@@ -55,8 +56,22 @@ async fn main() {
                 move || get_all_tracks(db)
             }),
         )
-        .layer(middleware::from_fn(move |request, next| {
-            auth_middleware(_token_manager.clone(), request, next)
+        .route(
+            "/download_tracks",
+            post({
+                let db = database.clone();
+                move |_query: Query<TokenQuery>, body| download_tracks(db, body)
+            }),
+        )
+        .route(
+            "/archive_track",
+            post({
+                let sender = sender.clone();
+                move |body| archive_track(sender, body)
+            }),
+        )
+        .layer(middleware::from_fn(move |jar, query, request, next| {
+            auth_middleware(jar, query, _token_manager.clone(), request, next)
         }))
         .route(
             "/use_secret",

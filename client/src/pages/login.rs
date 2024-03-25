@@ -1,12 +1,12 @@
 use common::token::ApiToken;
 use leptos::NodeRef;
 use leptos::{component, create_action, create_node_ref, view, IntoView, SignalSet, SignalWith};
-use leptos_use::storage::use_session_storage;
+use leptos_use::use_cookie;
 use leptos_use::utils::FromToStringCodec;
 use phosphor_leptos::IconWeight;
 use phosphor_leptos::Lock;
-use reqwest::Client;
 
+use crate::requests::REQWEST_CLIENT;
 use crate::BASE_API_URL;
 
 #[component]
@@ -20,14 +20,14 @@ pub fn Login() -> impl IntoView {
         use_secret_action.dispatch(value);
     };
     let token = use_secret_action.value().read_only();
-    let (_, set_api_token, _) = use_session_storage::<String, FromToStringCodec>("api_token");
+    let (_, set_api_token) = use_cookie::<String, FromToStringCodec>("api_token");
 
     view! {
         {move || {
             token
                 .with(|t| {
                     if let Some(Ok(t)) = t {
-                        set_api_token.set(t.as_str().to_string());
+                        set_api_token.set(Some(t.as_str().to_string()));
                     }
                 })
         }}
@@ -51,8 +51,7 @@ pub fn Login() -> impl IntoView {
 
 /// Requests an ApiToken by providing the secret
 async fn use_secret(secret: String) -> anyhow::Result<ApiToken> {
-    let client = Client::new();
-    let res = client
+    let res = REQWEST_CLIENT
         .post(format!("{}use_secret", BASE_API_URL.as_str()))
         .body(secret)
         .send()
