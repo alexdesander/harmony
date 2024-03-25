@@ -2,3 +2,4 @@ target
 server/harchive
 server/.env
 artifacts
+client/dist
