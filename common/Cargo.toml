@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.81"
-bitcode.workspace = true
 chrono = { workspace = true, features = ["serde"] }
 derive = "1.0.0"
 derive-getters = "0.3.0"

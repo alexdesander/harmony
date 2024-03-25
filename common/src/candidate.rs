@@ -1,6 +1,7 @@
 use anyhow::Context;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, bitcode::Encode, bitcode::Decode)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Candidate {
     pub url: String,
     pub title: Option<String>,

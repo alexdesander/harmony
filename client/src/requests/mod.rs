@@ -41,7 +41,7 @@ async fn get_all_tracks_inner(api_token: Signal<Option<String>>) -> anyhow::Resu
 
     let bytes = response.bytes().await?;
 
-    let mut tracks: Vec<Track> = bitcode::deserialize(&bytes)?;
+    let mut tracks: Vec<Track> = serde_json::from_slice(&bytes)?;
     tracks.sort_unstable_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
 
     Ok(tracks)
@@ -67,7 +67,7 @@ async fn archive_track_inner(
 ) -> anyhow::Result<()> {
     let response = REQWEST_CLIENT
         .post(format!("{}archive_track", *BASE_API_URL))
-        .body(bitcode::encode(&candidate))
+        .body(serde_json::to_string(&candidate)?)
         .header(
             "api_token",
             api_token.get_untracked().context("No api_token set")?,

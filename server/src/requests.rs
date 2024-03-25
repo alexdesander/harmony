@@ -11,13 +11,13 @@ use tokio_util::io::ReaderStream;
 
 use crate::{database::Database, TRACK_DIR};
 
-pub async fn get_all_tracks(database: Arc<Mutex<Database>>) -> Vec<u8> {
+pub async fn get_all_tracks(database: Arc<Mutex<Database>>) -> String {
     let tracks = database.lock().unwrap().all_tracks();
-    bitcode::serialize(&tracks).unwrap()
+    serde_json::to_string(&tracks).unwrap()
 }
 
 pub async fn archive_track(sender: Sender<Candidate>, body: Bytes) -> Result<(), String> {
-    let candidate: Candidate = match bitcode::decode(&body) {
+    let candidate: Candidate = match serde_json::from_slice(&body) {
         Ok(candidate) => candidate,
         Err(e) => return Err(e.to_string()),
     };

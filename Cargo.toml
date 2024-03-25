@@ -8,9 +8,7 @@ chrono = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0"
 itertools = "0.12.1"
-bitcode = { git = "https://github.com/SoftbearStudios/bitcode", features = [
-    "serde",
-] }
+serde_json = "1.0.114"
 
 [profile.release]
 lto = true

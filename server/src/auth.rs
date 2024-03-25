@@ -66,7 +66,7 @@ pub async fn use_secret(token_manager: Arc<TokenManager>, body: String) -> Respo
                 &format!("api_token={}; SameSite=None; Secure", token.as_str()),
             ),
         ],
-        bitcode::encode(&token),
+        serde_json::to_string(&token).unwrap(),
     )
         .into_response()
 }

@@ -1,6 +1,7 @@
 use random_string::generate;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, bitcode::Encode, bitcode::Decode, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ApiToken(String);
 
 impl ApiToken {

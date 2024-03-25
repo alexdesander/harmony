@@ -57,5 +57,5 @@ async fn use_secret(secret: String) -> anyhow::Result<ApiToken> {
         .send()
         .await?
         .error_for_status()?;
-    Ok(bitcode::decode(&res.bytes().await?)?)
+    Ok(serde_json::from_slice(&res.bytes().await?)?)
 }
